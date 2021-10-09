@@ -12,22 +12,22 @@ os.chdir('C:\\Users\\xizik\\Desktop\\data science\\cases\\covid_cases_comparison
 from credentials import Credentials
 
 def output_preparer(is_bot : bool):
-    data = pd.read_csv('https://covid.ourworldindata.org/data/owid-covid-data.csv')
+    data = pd.read_csv('https://covid.ourworldindata.org/data/owid-covid-data.csv', header = 0, 
+                       usecols = ['date', 'location','new_cases','new_deaths']) #TO DO in december add vaccinations 28-12-2021
     mask = data['location'] == 'Poland'
-    data = data.loc[mask,:].copy()
+    data = data.loc[mask,:].drop('location', axis = 1).copy()
     data.loc[:,'date'] = pd.to_datetime(data.loc[:,'date'])
     year_td = pd.Timedelta(days = 365 if pd.Timestamp.today().year % 4 != 0 else 366)
     today = pd.Timestamp.today().normalize() - pd.Timedelta(days = 1)
     today_yearago = (today - year_td).normalize()
-    mask1 = data['date'] == today_yearago
-    mask2 = data['date'] == today
+    mask = (data['date'].isin({today,today_yearago}))
     if is_bot: 
-        features = ['new_cases','new_deaths'] #TO REFACTOR in december add vaccinations 28-12-2021
-        return data.loc[mask2,features].values[0] - data.loc[mask1,features].values[0]
+        features = ['new_cases','new_deaths'] 
+        data_arr = np.array(data.loc[mask, features], dtype = int)
+        return np.diff(data_arr, axis = 0).flatten()
     else:
         pass
-
-if __name__ == "__main__":
+def main():
     cds = Credentials()
     api = TwitterAPI(consumer_key = cds.ck, 
                      consumer_secret = cds.cs, 
@@ -40,11 +40,15 @@ if __name__ == "__main__":
     except ValueError:
         values_to_post = [False, False]
     
-    if all(values_to_post):
-        tweet = f'Dzisiaj odnotowano {values_to_post[0]} nowych przypadków w stosunku do rok temu oraz {values_to_post[1]} zgonów w stosunku do rok temu.'
+    if values_to_post.all():
+        tweet = f"""Dzisiaj odnotowano {values_to_post[0]} nowych przypadków w stosunku do rok temu
+         oraz {values_to_post[1]} zgonów w stosunku do rok temu."""
     else:
         tweet = 'Niestety nie posiadamy danych na dzis.'
         
-    request = api.request('statuses/update', {'status':tweet})
+    api.request('statuses/update', {'status':tweet})
+    
+if __name__ == "__main__":
+    main()
     
 
